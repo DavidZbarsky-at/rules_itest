@@ -7,6 +7,9 @@ go_library(
         "set_sockopt_linger_unix.go",
         "set_sockopt_linger_windows.go",
     ],
+    data = [
+        "@rules_itest//:libsocket.so",
+    ],
     importpath = "rules_itest/cmd/svcinit",
     visibility = ["//visibility:private"],
     deps = [

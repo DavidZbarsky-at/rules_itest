@@ -43,6 +43,12 @@ func main() {
 		os.Setenv(parts[0], parts[1])
 	}
 
+	libsocketPath, err := runfiles.Rlocation("rules_itest/libsocket.so")
+	must(err)
+	_ = libsocketPath
+	fmt.Println(libsocketPath)
+	os.Setenv("LD_PRELOAD", libsocketPath)
+
 	enablePerServiceReload := os.Getenv("SVCINIT_ENABLE_PER_SERVICE_RELOAD") == "True"
 	shouldHotReload := os.Getenv("IBAZEL_NOTIFY_CHANGES") == "y"
 	testLabel := os.Getenv("TEST_TARGET")
@@ -302,21 +308,25 @@ func readVersionedServiceSpecs(
 			// https://stackoverflow.com/questions/71975992/what-really-is-the-linger-time-that-can-be-set-with-so-linger-on-sockets
 			lc := net.ListenConfig{
 				Control: func(network, address string, conn syscall.RawConn) error {
-					var setSockoptErr error
+					var setSockoptErr, setReusePortErr error
 					err := conn.Control(func(fd uintptr) {
 						setSockoptErr = setSockoptLinger(fd, syscall.SOL_SOCKET, syscall.SO_LINGER, &syscall.Linger{
 							Onoff:  1,
 							Linger: 0,
 						})
+						setReusePortErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEPORT, 1)
 					})
 					if err != nil {
 						return err
 					}
-					return setSockoptErr
+					if setSockoptErr != nil {
+						return setSockoptErr
+					}
+					return setReusePortErr
 				},
 			}
 
-			listener, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
+			listener, err := lc.Listen(context.Background(), "tcp4", "127.0.0.1:")
 			if err != nil {
 				return nil, err
 			}
